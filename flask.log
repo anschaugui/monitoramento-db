@@ -1,0 +1,6 @@
+2026-03-03 09:01:45,674 INFO Coletor automßtico iniciado (intervalo: 300s)
+2026-03-03 09:01:45,747 INFO Iniciando servidor Waitress em 0.0.0.0:9001 (threads=8)
+2026-03-03 09:01:45,749 INFO Serving on http://0.0.0.0:9001
+2026-03-03 09:01:45,838 INFO package: mysql.connector.plugins
+2026-03-03 09:01:45,838 INFO plugin_name: mysql_native_password
+2026-03-03 09:01:45,839 INFO AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
