@@ -1,0 +1,2128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MariaDB Monitoring Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background:
+                radial-gradient(1200px 600px at 10% -10%, rgba(88, 101, 242, 0.16), transparent 55%),
+                radial-gradient(1200px 700px at 100% 0%, rgba(139, 92, 246, 0.14), transparent 50%),
+                linear-gradient(180deg, #0b0f14 0%, #0f141b 45%, #0b1117 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #e6edf3;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, rgba(88, 101, 242, 0.22) 0%, rgba(139, 92, 246, 0.2) 100%);
+            border-radius: 15px;
+            border: 1px solid rgba(139, 148, 158, 0.25);
+            backdrop-filter: blur(6px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        header h1 {
+            font-size: 2.8em;
+            margin-bottom: 10px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            background-color: #161b22;
+            color: #9fb4ff;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95em;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.15);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn.active {
+            background-color: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .refresh-info {
+            text-align: center;
+            color: #9da7b3;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+            font-weight: 500;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: #161b22;
+            border-radius: 12px;
+            padding: 28px;
+            box-shadow: 0 6px 28px rgba(0, 0, 0, 0.32);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid #30363d;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 14px 38px rgba(0, 0, 0, 0.45);
+            border-color: rgba(102, 126, 234, 0.45);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.25em;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #2b3137;
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: #9da7b3;
+            font-weight: 500;
+            font-size: 0.95em;
+        }
+
+        .metric-value {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: #667eea;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .metric-value.high {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .metric-value.warning {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .metric-value.good {
+            background: linear-gradient(135deg, #27ae60, #229954);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+            background: #0f141b;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th {
+            background: #1b2430;
+            color: #dce6f3;
+            padding: 16px 12px;
+            text-align: left;
+            font-weight: 600;
+            border: none;
+            font-size: 0.95em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 14px 12px;
+            border-bottom: 1px solid #2b3137;
+            color: #c9d1d9;
+            font-size: 0.95em;
+            background: #161b22;
+        }
+
+        tr:hover {
+            background-color: #1f2732;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .status-badge.running {
+            background: linear-gradient(135deg, rgba(52, 152, 219, 0.1), rgba(30, 144, 255, 0.1));
+            color: #2980b9;
+            border: 1px solid #3498db;
+        }
+
+        .status-badge.locked {
+            background: linear-gradient(135deg, rgba(243, 156, 18, 0.1), rgba(230, 126, 34, 0.1));
+            color: #d68910;
+            border: 1px solid #f39c12;
+        }
+
+        .status-badge.sleeping {
+            background: linear-gradient(135deg, rgba(155, 89, 182, 0.1), rgba(123, 31, 162, 0.1));
+            color: #8e44ad;
+            border: 1px solid #af7ac5;
+        }
+
+        .no-data {
+            text-align: center;
+            color: #9da7b3;
+            padding: 30px 20px;
+            font-style: italic;
+            background: #111827;
+            border-radius: 8px;
+        }
+
+        .section {
+            margin-bottom: 45px;
+        }
+
+        .section-title {
+            color: #e6edf3;
+            font-size: 1.8em;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #4f5bd5;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #667eea;
+            animation: pulse 1.5s infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
+        }
+
+        .text-truncate {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .text-truncate:hover {
+            white-space: normal;
+            overflow: visible;
+            background-color: #202938;
+            padding: 5px;
+            border-radius: 3px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2em;
+            }
+
+            .dashboard {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .controls {
+                gap: 8px;
+            }
+
+            .btn {
+                padding: 10px 16px;
+                font-size: 0.9em;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .section-title {
+                font-size: 1.5em;
+            }
+
+            table {
+                font-size: 0.9em;
+            }
+
+            th, td {
+                padding: 10px 8px;
+            }
+        }
+
+        /* Animations */
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card {
+            animation: slideInUp 0.5s ease forwards;
+        }
+
+        .card:nth-child(2) { animation-delay: 0.1s; }
+        .card:nth-child(3) { animation-delay: 0.2s; }
+        .card:nth-child(4) { animation-delay: 0.3s; }
+
+        /* Recommendations Styles */
+        .recommendation-item {
+            padding: 20px;
+            margin-bottom: 16px;
+            border-radius: 10px;
+            border-left: 5px solid;
+            background: #141b24;
+            border: 1px solid #2f3742;
+            display: flex;
+            gap: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .recommendation-item:hover {
+            transform: translateX(10px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.45);
+        }
+
+        .recommendation-item.crítico {
+            border-left-color: #e74c3c;
+            background: linear-gradient(90deg, rgba(231, 76, 60, 0.16), rgba(20, 27, 36, 0.95));
+        }
+
+        .recommendation-item.alto {
+            border-left-color: #f39c12;
+            background: linear-gradient(90deg, rgba(243, 156, 18, 0.16), rgba(20, 27, 36, 0.95));
+        }
+
+        .recommendation-item.médio {
+            border-left-color: #3498db;
+            background: linear-gradient(90deg, rgba(52, 152, 219, 0.16), rgba(20, 27, 36, 0.95));
+        }
+
+        .recommendation-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .recommendation-badge.crítico {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .recommendation-badge.alto {
+            background: #f39c12;
+            color: white;
+        }
+
+        .recommendation-badge.médio {
+            background: #3498db;
+            color: white;
+        }
+
+        .recommendation-content {
+            flex: 1;
+        }
+
+        .recommendation-title {
+            font-size: 1.05em;
+            font-weight: 700;
+            color: #e6edf3;
+            margin-bottom: 8px;
+        }
+
+        .recommendation-description {
+            font-size: 0.9em;
+            color: #b8c3cf;
+            margin-bottom: 10px;
+        }
+
+        .recommendation-impact {
+            font-size: 0.85em;
+            color: #e74c3c;
+            font-weight: 600;
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(231, 76, 60, 0.1);
+            border-radius: 5px;
+        }
+
+        .recommendation-actions {
+            font-size: 0.85em;
+            color: #9da7b3;
+            margin-top: 10px;
+            padding: 10px;
+            background: #111827;
+            border: 1px solid #2b3340;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .recommendation-actions li {
+            margin: 5px 0;
+            margin-left: 20px;
+        }
+
+        /* Health Check Grid */
+        .health-check-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .health-check-item {
+            padding: 15px;
+            background: #111827;
+            border-radius: 10px;
+            border: 1px solid #30363d;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .health-check-item:hover {
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+            transform: translateY(-3px);
+        }
+
+        .health-check-name {
+            font-size: 0.9em;
+            color: #9da7b3;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .health-check-value {
+            font-size: 1.8em;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .health-check-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .health-check-status.ok {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .health-check-status.atenção {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .health-check-status.crítico {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .health-score-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .health-score-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #27ae60, #667eea);
+            transition: width 0.5s ease;
+        }
+        .health-check-grid {
+            align-items: flex-start;
+        }
+
+        .recommendation-item.critico {
+            border-left-color: #e74c3c;
+            background: #ffebee;
+        }
+
+        .recommendation-item.aviso {
+            border-left-color: #f39c12;
+            background: #fff8e1;
+        }
+
+        .recommendation-item.info {
+            border-left-color: #27ae60;
+            background: #e8f5e9;
+        }
+
+        .recommendation-icon {
+            font-size: 1.8em;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .recommendation-content {
+            flex: 1;
+        }
+
+        .recommendation-content h3 {
+            margin: 0 0 8px 0;
+            font-size: 1.1em;
+            color: #2c3e50;
+        }
+
+        .recommendation-problema {
+            color: #666;
+            font-size: 0.95em;
+            margin-bottom: 10px;
+            font-style: italic;
+        }
+
+        .recommendation-solucao {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            border-left: 3px solid #667eea;
+            color: #555;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+
+        .priority-badge {
+            display: inline-block;
+            font-size: 0.85em;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        .priority-badge.p1 {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .priority-badge.p2 {
+            background: #f39c12;
+            color: white;
+        }
+
+        .priority-badge.p3 {
+            background: #3498db;
+            color: white;
+        }
+
+        .priority-badge.p4 {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .tabs-nav {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            color: #667eea;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+            gap: 24px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card {
+            background: #161b22;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #30363d;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .chart-card h3 {
+            margin-bottom: 12px;
+            color: #e6edf3;
+        }
+
+        .table-container {
+            border-color: #30363d;
+            background: #0f141b;
+        }
+
+        th {
+            background: #1f2937;
+            color: #e6edf3;
+        }
+
+        td {
+            color: #c9d1d9;
+            border-bottom: 1px solid #2b3137;
+            background: #161b22;
+        }
+
+        .metric-label,
+        .text-muted,
+        .no-data,
+        .performance-info {
+            color: #9da7b3 !important;
+        }
+
+        .section-title,
+        .card h2,
+        .health-check-name,
+        .health-check-value,
+        .modal h2,
+        .modal h3 {
+            color: #e6edf3 !important;
+        }
+
+        .chart-wrap {
+            height: 280px;
+        }
+
+        .performance-info {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #667;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>MariaDB Monitoring Dashboard</h1>
+            <p>Monitoramento em tempo real da saúde e performance do seu banco de dados</p>
+        </header>
+
+        <div class="controls">
+            <button class="btn" onclick="setRefreshInterval(5000)">Auto-Refresh 5s</button>
+            <button class="btn active" onclick="setRefreshInterval(10000)">Auto-Refresh 10s</button>
+            <button class="btn" onclick="setRefreshInterval(30000)">Auto-Refresh 30s</button>
+            <button class="btn" id="pause-btn" onclick="togglePauseRefresh()">PARAR ATUALIZAÇÃO</button>
+            <button class="btn" onclick="loadAllData()">Atualizar Agora</button>
+        </div>
+
+        <div class="refresh-info">
+            Última atualização: <span id="last-update">--:--:--</span> <span class="loading" id="loading"></span>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Alertas Priorizados do DBA</div>
+            <div class="dashboard">
+                <div class="card full-width">
+                    <div id="dba-alerts-container">Carregando alertas...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tabs-nav">
+            <button class="tab-btn active" id="tab-btn-operational" onclick="switchTab('operational')">Visão Operacional</button>
+            <button class="tab-btn" id="tab-btn-performance" onclick="switchTab('performance')">Performance 24h</button>
+            <button class="tab-btn" id="tab-btn-management" onclick="switchTab('management')">Gerenciamento</button>
+        </div>
+
+        <div id="tab-operational" class="tab-content active">
+
+        <!-- DATABASE STATUS -->
+        <div class="section">
+            <div class="section-title">Status do Banco</div>
+            <div class="dashboard">
+                <div class="card full-width">
+                    <div id="replication-status-container">Carregando status...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Resumo Executivo DBA</div>
+            <div class="dashboard">
+                <div class="card full-width">
+                    <div id="dba-summary-container">Carregando resumo executivo...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DBA RECOMMENDATIONS PANEL -->
+        <!-- RECOMMENDATIONS -->
+        <div class="section">
+            <div class="section-title">Recomendações Inteligentes do DBA</div>
+            <div class="dashboard">
+                <div class="card full-width">
+                    <div id="recommendations-container">Carregando análise...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HEALTH CHECK DETAILED -->
+        <div class="section">
+            <div class="section-title">Health Check - Status Geral do Banco</div>
+            <div class="dashboard">
+                <div class="card full-width">
+                    <div class="health-check-grid" id="health-check-grid">
+                        Carregando...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RUNNING QUERIES -->
+        <div class="section">
+            <div class="section-title">Queries em Execução</div>
+            <div class="dashboard">
+                <div class="card full-width">
+                    <h2>TOP Queries Rodando Agora</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Usuário</th>
+                                    <th>Host</th>
+                                    <th>Database</th>
+                                    <th>Tempo (s)</th>
+                                    <th>Estado</th>
+                                    <th>Query</th>
+                                    <th>Tomada de Decisão</th>
+                                    <th>Comando Manual</th>
+                                </tr>
+                            </thead>
+                            <tbody id="running-queries-table">
+                                <tr><td colspan="9" class="no-data">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONNECTIONS & LOCKS -->
+        <div class="section">
+            <div class="section-title">Conexões e Locks</div>
+            <div class="dashboard">
+                <div class="card">
+                    <h2>Conexões Ativas</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tipo de Conexão</th>
+                                    <th>Quantidade</th>
+                                </tr>
+                            </thead>
+                            <tbody id="connections-table">
+                                <tr><td colspan="2" class="no-data">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Transações Abertas</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID Transação</th>
+                                    <th>Thread ID</th>
+                                    <th>Iniciada em</th>
+                                    <th>Query Atual</th>
+                                    <th>Tomada de Decisão</th>
+                                    <th>Comando Manual</th>
+                                </tr>
+                            </thead>
+                            <tbody id="locks-table">
+                                <tr><td colspan="6" class="no-data">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HEAVY QUERIES -->
+        <div class="section">
+            <div class="section-title">Queries Mais Pesadas</div>
+            <div class="dashboard">
+                <div class="card full-width">
+                    <h2>Top 10 Queries por Tempo Total</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Query</th>
+                                    <th>Execuções</th>
+                                    <th>Tempo Total (s)</th>
+                                    <th>Tempo Médio (ms)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="heavy-queries-table">
+                                <tr><td colspan="4" class="no-data">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: QUERY LENTA DETAILS -->
+        <div id="query-details-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Análise da Query Lenta</h2>
+                    <button class="modal-close" onclick="closeQueryModal()">&times;</button>
+                </div>
+                
+                <div class="modal-body">
+                    <!-- Informações Básicas -->
+                    <div class="modal-section">
+                        <h3>Informações da Query</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <label>Thread ID:</label>
+                                <span id="modal-thread-id">--</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Usuário:</label>
+                                <span id="modal-user">--</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Host:</label>
+                                <span id="modal-host">--</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Banco:</label>
+                                <span id="modal-db">--</span>
+                            </div>
+                            <div class="info-item" style="grid-column: 1 / -1;">
+                                <label>Tempo de Execução:</label>
+                                <span id="modal-time" style="color: #e74c3c; font-weight: bold; font-size: 1.2em;">-- segundos</span>
+                            </div>
+                            <div class="info-item" style="grid-column: 1 / -1;">
+                                <label>Estado:</label>
+                                <span id="modal-state">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Query -->
+                    <div class="modal-section">
+                        <h3>SQL Query</h3>
+                        <div class="query-box" id="modal-query">--</div>
+                    </div>
+
+                    <!-- Recomendações -->
+                    <div class="modal-section">
+                        <h3>Recomendações e Ações</h3>
+                        <div id="modal-recommendations">
+                            <p>Carregando recomendações...</p>
+                        </div>
+                    </div>
+
+                    <!-- Explain Plan -->
+                    <div class="modal-section">
+                        <h3>Plano de Execução (EXPLAIN)</h3>
+                        <button class="btn-small" onclick="loadExplainPlan()">Carregar EXPLAIN</button>
+                        <div id="modal-explain" style="margin-top: 10px;">
+                            <p class="text-muted">Clique no botão acima para carregar</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-body">
+                    <button class="btn" onclick="closeQueryModal()" style="width: 100%;">Fechar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLOW QUERIES DETAIL -->
+        <div class="section">
+            <div class="section-title">Queries Lentas em Execução</div>
+            <div class="dashboard">
+                <div class="card full-width">
+                    <h2>Queries Executando há mais de 30 segundos</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Thread ID</th>
+                                    <th>Usuário</th>
+                                    <th>Host</th>
+                                    <th>DB</th>
+                                    <th>Tempo (s)</th>
+                                    <th>Estado</th>
+                                    <th>Query</th>
+                                </tr>
+                            </thead>
+                            <tbody id="slow-queries-detail-table">
+                                <tr><td colspan="7" class="no-data">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-muted" style="margin-top: 10px; font-size: 0.9em;">Clique em uma query para ver recomendações e análise detalhada</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CACHE & RESOURCES -->
+        <div class="section">
+            <div class="section-title">Cache e Recursos</div>
+            <div class="dashboard">
+                <div class="card">
+                    <h2>Buffer Pool (Cache)</h2>
+                    <div id="cache-info">Carregando...</div>
+                </div>
+
+                <div class="card">
+                    <h2>Uptime e Estatísticas</h2>
+                    <div id="uptime-info">Carregando...</div>
+                </div>
+
+                <div class="card">
+                    <h2>Tamanho das Databases</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Database</th>
+                                    <th>Tamanho (MB)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="database-size-table">
+                                <tr><td colspan="2" class="no-data">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Top Usuários Ativos</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Usuário</th>
+                                    <th>Queries Ativas</th>
+                                    <th>Qtd. Databases</th>
+                                </tr>
+                            </thead>
+                            <tbody id="top-users-table">
+                                <tr><td colspan="3" class="no-data">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TABLE FRAGMENTATION -->
+        <div class="section">
+            <div class="section-title">Saúde e Otimização das Tabelas</div>
+            <div class="dashboard">
+                <div class="card full-width">
+                    <h2>Tabelas Fragmentadas</h2>
+                    <p style="color: #999; font-size: 0.9em; margin-bottom: 10px;">Tabelas com alto ratio de deletes podem precisar de OPTIMIZE</p>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tabela</th>
+                                    <th>Fragmentação %</th>
+                                    <th>Inserts</th>
+                                    <th>Deletes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fragmentation-table">
+                                <tr><td colspan="4" class="no-data">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        </div>
+
+        <div id="tab-performance" class="tab-content">
+            <div class="section">
+                <div class="section-title">Gráficos de Performance (Últimas 24h)</div>
+                <div class="dashboard">
+                    <div class="card full-width">
+                        <div class="performance-info">
+                            Dados coletados automaticamente no schema devops
+                        </div>
+                        <div class="chart-grid">
+                            <div class="chart-card">
+                                <h3>Queries Lentas ao Longo do Tempo</h3>
+                                <div class="chart-wrap"><canvas id="chart-slow-queries"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>Conexões Ativas e Idle</h3>
+                                <div class="chart-wrap"><canvas id="chart-connections"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>Crescimento das Bases</h3>
+                                <div class="chart-wrap"><canvas id="chart-db-growth"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>QPS (Queries Per Second)</h3>
+                                <div class="chart-wrap"><canvas id="chart-qps"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>Replication Lag</h3>
+                                <div class="chart-wrap"><canvas id="chart-replication-lag"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>Buffer Pool Hit Ratio</h3>
+                                <div class="chart-wrap"><canvas id="chart-buffer-hit"></canvas></div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>Deadlocks e Tmp Disk Tables/h</h3>
+                                <div class="chart-wrap"><canvas id="chart-deadlocks"></canvas></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-management" class="tab-content">
+            <div class="section">
+                <div class="section-title">Gerenciamento de Incidentes e Notificações</div>
+                <div class="dashboard">
+                    <div class="card full-width">
+                        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+                            <button class="btn" onclick="loadManagementData(true)">Atualizar Gerenciamento</button>
+                            <button class="btn" onclick="dispatchManagementEmail(true)">Enviar E-mail Agora</button>
+                        </div>
+                        <div id="management-dispatch-status" style="margin-bottom: 12px; color:#9da7b3;">Status de envio: aguardando...</div>
+                        <div id="management-email-config" style="margin-bottom: 12px; color:#9da7b3;">Configuração de e-mail: carregando...</div>
+                        <div id="management-incidents-container">Incidentes críticos: carregando...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let refreshInterval = 10000;
+        let refreshTimer = null;
+        let refreshPaused = false;
+        let currentTab = 'operational';
+        let lastCollectorTriggerAt = 0;
+        let lastExpensiveRefreshAt = 0;
+        let lastManagementDispatchAt = 0;
+        const collectorTriggerInterval = 60000;
+        const expensiveRefreshInterval = 60000;
+        const managementDispatchInterval = 60000;
+        const performanceCharts = {
+            slowQueries: null,
+            connections: null,
+            dbGrowth: null,
+            qps: null,
+            replicationLag: null,
+            bufferHit: null,
+            deadlocks: null
+        };
+
+        function switchTab(tabName) {
+            currentTab = tabName;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            document.getElementById(`tab-btn-${tabName}`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+
+            if (tabName === 'performance') {
+                loadPerformance24h();
+            } else if (tabName === 'management') {
+                loadManagementData(true);
+            }
+        }
+
+        async function loadManagementData(runAutoDispatch = false) {
+            try {
+                const response = await fetch('/api/management/incidents');
+                const data = await response.json();
+
+                const cfg = data.email || {};
+                const incidents = data.incidents || [];
+
+                const configColor = (cfg.enabled && cfg.configured) ? '#27ae60' : '#f39c12';
+                const configText = !cfg.enabled
+                    ? 'Envio de e-mail desabilitado (ALERT_EMAIL_ENABLED=false)'
+                    : (cfg.configured
+                        ? `SMTP OK (${cfg.smtp_host}:${cfg.smtp_port}) | Destino: ${(cfg.to || []).join(', ')} | Cooldown: ${cfg.cooldown_seconds}s`
+                        : `Configuração incompleta: ${(cfg.missing || []).join(', ')}`);
+
+                document.getElementById('management-email-config').innerHTML =
+                    `<strong style="color:${configColor}">Configuração de e-mail:</strong> ${configText}`;
+
+                if (!incidents.length) {
+                    document.getElementById('management-incidents-container').innerHTML =
+                        '<div style="padding: 12px; border:1px solid #2b3340; border-radius:8px; color:#27ae60;">Nenhum incidente crítico detectado.</div>';
+                } else {
+                    let html = '';
+                    incidents.forEach((item, index) => {
+                        const color = item.severity === 'CRÍTICO' ? '#e74c3c' : '#f39c12';
+                        html += `
+                            <div style="border-left: 5px solid ${color}; background: #101722; border-radius: 8px; padding: 14px; margin-bottom: 10px; border: 1px solid #2b3340;">
+                                <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:6px;">
+                                    <strong style="color:${color};">[${index + 1}] ${item.severity}</strong>
+                                    <span style="font-weight:700; color:#e6edf3;">${item.title}</span>
+                                </div>
+                                <div style="color:#c9d1d9; margin-bottom:6px;">${item.detail}</div>
+                                <div style="color:#e6edf3; margin-bottom:6px;"><strong>Ação:</strong> ${item.action}</div>
+                                ${item.command ? `<div style="background:#0f1724; border:1px solid #2b3340; border-radius:6px; padding:8px; color:#6ee7b7;"><code>${item.command}</code></div>` : ''}
+                            </div>
+                        `;
+                    });
+                    document.getElementById('management-incidents-container').innerHTML = html;
+                }
+
+                if (runAutoDispatch) {
+                    const now = Date.now();
+                    if ((now - lastManagementDispatchAt) >= managementDispatchInterval) {
+                        await dispatchManagementEmail(false);
+                        lastManagementDispatchAt = now;
+                    }
+                }
+            } catch (error) {
+                document.getElementById('management-incidents-container').innerHTML =
+                    '<div style="color:#e74c3c; padding: 12px;">Erro ao carregar gerenciamento de incidentes.</div>';
+            }
+        }
+
+        async function dispatchManagementEmail(forceSend = false) {
+            try {
+                const response = await fetch('/api/management/dispatch-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ force: forceSend })
+                });
+                const data = await response.json();
+                const dispatch = data.dispatch || {};
+
+                let statusText = 'Sem envio';
+                let color = '#9da7b3';
+
+                if (dispatch.sent) {
+                    statusText = `E-mail enviado para ${(dispatch.to || []).join(', ')} (${dispatch.count || 0} incidente(s))`;
+                    color = '#27ae60';
+                } else if (dispatch.error) {
+                    statusText = `Falha no envio: ${dispatch.error}`;
+                    color = '#e74c3c';
+                } else if (dispatch.reason) {
+                    statusText = dispatch.reason;
+                    color = '#f39c12';
+                }
+
+                document.getElementById('management-dispatch-status').innerHTML =
+                    `<strong style="color:${color}">Status de envio:</strong> ${statusText}`;
+
+                return data;
+            } catch (error) {
+                document.getElementById('management-dispatch-status').innerHTML =
+                    `<strong style="color:#e74c3c">Status de envio:</strong> erro ao chamar endpoint de e-mail`;
+                return null;
+            }
+        }
+
+        function setRefreshInterval(interval) {
+            refreshPaused = false;
+            refreshInterval = interval;
+            clearInterval(refreshTimer);
+            document.querySelectorAll('.controls .btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('pause-btn').classList.remove('active');
+            event.target.classList.add('active');
+            refreshTimer = setInterval(loadAllData, refreshInterval);
+        }
+
+        function togglePauseRefresh() {
+            refreshPaused = !refreshPaused;
+            const pauseBtn = document.getElementById('pause-btn');
+            
+            if (refreshPaused) {
+                clearInterval(refreshTimer);
+                pauseBtn.classList.add('active');
+                pauseBtn.textContent = 'RETOMAR ATUALIZAÇÃO';
+            } else {
+                pauseBtn.classList.remove('active');
+                pauseBtn.textContent = 'PARAR ATUALIZAÇÃO';
+                refreshTimer = setInterval(loadAllData, refreshInterval);
+            }
+        }
+
+        function updateLastUpdateTime() {
+            const now = new Date();
+            document.getElementById('last-update').textContent = now.toLocaleTimeString('pt-BR');
+        }
+
+        async function loadRunningQueries() {
+            try {
+                const response = await fetch('/api/running-queries');
+                const data = await response.json();
+                
+                let html = '';
+                if (data.length === 0) {
+                    html = '<tr><td colspan="9" class="no-data">Nenhuma query em execução</td></tr>';
+                } else {
+                    data.forEach(row => {
+                        const levelColor = row.decision_level === 'CRÍTICO'
+                            ? '#dc3545'
+                            : row.decision_level === 'ALTO'
+                                ? '#f39c12'
+                                : row.decision_level === 'ATENÇÃO'
+                                    ? '#f1c40f'
+                                    : '#27ae60';
+
+                        html += `
+                            <tr>
+                                <td>${row.thread_id}</td>
+                                <td>${row.USER}</td>
+                                <td>${row.HOST}</td>
+                                <td>${row.DB || '--'}</td>
+                                <td><strong>${row.segundos_execucao}s</strong></td>
+                                <td><span class="status-badge running">${row.STATE || 'Executing'}</span></td>
+                                <td><span class="text-truncate">${row.query || '--'}</span></td>
+                                <td><div style="color:${levelColor}; font-weight:700; margin-bottom:4px;">${row.decision_level || 'INFO'}</div><div style="color:#9da7b3; font-size:0.86em;">${row.decision_text || '--'}</div></td>
+                                <td><code style="color:#6ee7b7;">${row.action_command || '--'}</code></td>
+                            </tr>
+                        `;
+                    });
+                }
+                document.getElementById('running-queries-table').innerHTML = html;
+            } catch (error) {
+                console.error('Erro ao carregar queries em execução:', error);
+            }
+        }
+
+        async function loadConnections() {
+            try {
+                const response = await fetch('/api/connections');
+                const data = await response.json();
+                
+                let html = '';
+                if (data.length === 0) {
+                    html = '<tr><td colspan="2" class="no-data">Sem dados</td></tr>';
+                } else {
+                    data.forEach(row => {
+                        let badge = 'running';
+                        if (row.COMMAND === 'Sleep') badge = 'sleeping';
+                        if (row.COMMAND === 'Lock') badge = 'locked';
+                        
+                        html += `
+                            <tr>
+                                <td><span class="status-badge ${badge}">${row.COMMAND}</span></td>
+                                <td><strong>${row.qtd}</strong></td>
+                            </tr>
+                        `;
+                    });
+                }
+                document.getElementById('connections-table').innerHTML = html;
+            } catch (error) {
+                console.error('Erro ao carregar conexões:', error);
+            }
+        }
+
+        async function loadLocks() {
+            try {
+                const response = await fetch('/api/locks');
+                const data = await response.json();
+                
+                let html = '';
+                if (data.length === 0) {
+                    html = '<tr><td colspan="6" class="no-data">Nenhuma transação aberta</td></tr>';
+                } else {
+                    data.forEach(row => {
+                        html += `
+                            <tr>
+                                <td>${row.trx_id}</td>
+                                <td>${row.trx_mysql_thread_id}</td>
+                                <td>${new Date(row.trx_started).toLocaleString('pt-BR')}</td>
+                                <td><span class="text-truncate">${row.trx_query || '--'}</span></td>
+                                <td style="color:#9da7b3; font-size:0.86em;">${row.decision_text || '--'}</td>
+                                <td><code style="color:#6ee7b7;">${row.action_command || '--'}</code></td>
+                            </tr>
+                        `;
+                    });
+                }
+                document.getElementById('locks-table').innerHTML = html;
+            } catch (error) {
+                console.error('Erro ao carregar locks:', error);
+            }
+        }
+
+        async function loadHeavyQueries() {
+            try {
+                const response = await fetch('/api/heavy-queries');
+                const data = await response.json();
+                
+                let html = '';
+                if (data.length === 0) {
+                    html = '<tr><td colspan="4" class="no-data">Sem dados de performance_schema</td></tr>';
+                } else {
+                    data.forEach(row => {
+                        html += `
+                            <tr>
+                                <td><span class="text-truncate">${row.DIGEST_TEXT || '--'}</span></td>
+                                <td>${row.execucoes}</td>
+                                <td><strong>${row.tempo_total_seg}s</strong></td>
+                                <td>${row.tempo_medio_ms}ms</td>
+                            </tr>
+                        `;
+                    });
+                }
+                document.getElementById('heavy-queries-table').innerHTML = html;
+            } catch (error) {
+                console.error('Erro ao carregar heavy queries:', error);
+            }
+        }
+
+        async function loadSlowQueriesDetail() {
+            try {
+                const response = await fetch('/api/slow-queries-detail');
+                const data = await response.json();
+                
+                let html = '';
+                if (data.length === 0) {
+                    html = '<tr><td colspan="7" class="no-data">Nenhuma query lenta em execução</td></tr>';
+                } else {
+                    data.forEach(row => {
+                        html += `
+                            <tr>
+                                <td>${row.thread_id}</td>
+                                <td><strong>${row.USER}</strong></td>
+                                <td>${row.HOST}</td>
+                                <td>${row.DB || '--'}</td>
+                                <td style="color: #e74c3c; font-weight: bold;">${row.executando_ha_segundos}s</td>
+                                <td><span class="status-badge running">${row.STATE || 'Executing'}</span></td>
+                                <td><span class="text-truncate">${row.query || '--'}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+                document.getElementById('slow-queries-detail-table').innerHTML = html;
+            } catch (error) {
+                console.error('Erro ao carregar slow queries detail:', error);
+            }
+        }
+
+        async function loadCacheInfo() {
+            try {
+                const response = await fetch('/api/cache-info');
+                const data = await response.json();
+                
+                let html = '<div class="metric">';
+                if (data && data.innodb_buffer_pool_size) {
+                    html += `
+                        <span class="metric-label">Buffer Pool Size</span>
+                        <span class="metric-value">${data.innodb_buffer_pool_size} GB</span>
+                    </div>
+                    `;
+                } else {
+                    html += `
+                        <span class="metric-label">Buffer Pool Size</span>
+                        <span class="metric-value">N/A</span>
+                    </div>
+                    `;
+                }
+                
+                if (data && data.cache_hit_ratio !== undefined) {
+                    const hitRatio = parseFloat(data.cache_hit_ratio);
+                    const hitClass = hitRatio > 99 ? 'good' : hitRatio > 95 ? 'warning' : 'high';
+                    html += `
+                        <div class="metric">
+                        <span class="metric-label">Cache Hit Ratio</span>
+                        <span class="metric-value ${hitClass}">${hitRatio}%</span>
+                    </div>
+                    `;
+                }
+                
+                document.getElementById('cache-info').innerHTML = html || '<p class="no-data">Sem dados</p>';
+            } catch (error) {
+                console.error('Erro ao carregar cache info:', error);
+                document.getElementById('cache-info').innerHTML = '<p class="no-data">Erro ao carregar</p>';
+            }
+        }
+
+        async function loadUptimeInfo() {
+            try {
+                const response = await fetch('/api/uptime');
+                const data = await response.json();
+                
+                // Tentar obter uptime de diferentes nomes de variável
+                const uptime_seconds = parseInt(data.Uptime || data['Uptime'] || 0);
+                const threads = data.Threads_connected || data['Threads_connected'] || 'N/A';
+                const questions = data.Questions || data['Questions'] || 0;
+                const slow_queries = data.Slow_queries || data['Slow_queries'] || 'N/A';
+                
+                // Converter segundos para dias/horas
+                const days = Math.floor(uptime_seconds / 86400);
+                const hours = Math.floor((uptime_seconds % 86400) / 3600);
+                const minutes = Math.floor((uptime_seconds % 3600) / 60);
+                
+                let html = `
+                    <div class="metric">
+                        <span class="metric-label">Uptime</span>
+                        <span class="metric-value">${uptime_seconds > 0 ? days + 'd ' + hours + 'h ' + minutes + 'm' : 'N/A'}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Conexões Ativas</span>
+                        <span class="metric-value">${threads}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Queries Executadas</span>
+                        <span class="metric-value">${parseInt(questions || 0).toLocaleString()}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Slow Queries Totais</span>
+                        <span class="metric-value ${parseInt(slow_queries) > 10 ? 'high' : 'good'}">${slow_queries}</span>
+                    </div>
+                `;
+                
+                document.getElementById('uptime-info').innerHTML = html;
+            } catch (error) {
+                console.error('Erro ao carregar uptime:', error);
+                document.getElementById('uptime-info').innerHTML = '<p class="no-data">Erro ao carregar dados</p>';
+            }
+        }
+
+        async function loadDatabaseSize() {
+            try {
+                const response = await fetch('/api/database-size');
+                const data = await response.json();
+                
+                let html = '';
+                if (!data || data.length === 0) {
+                    html = '<tr><td colspan="2" class="no-data">Sem dados de databases</td></tr>';
+                } else {
+                    data.forEach(row => {
+                        const dbName = row.database || 'N/A';
+                        const size = row.size_mb || 0;
+                        html += `
+                            <tr>
+                                <td><strong>${dbName}</strong></td>
+                                <td>${size} MB</td>
+                            </tr>
+                        `;
+                    });
+                }
+                document.getElementById('database-size-table').innerHTML = html;
+            } catch (error) {
+                console.error('Erro ao carregar database size:', error);
+                document.getElementById('database-size-table').innerHTML = '<tr><td colspan="2" class="no-data">Erro ao carregar</td></tr>';
+            }
+        }
+
+        async function loadTopUsers() {
+            try {
+                const response = await fetch('/api/top-users');
+                const data = await response.json();
+                
+                let html = '';
+                if (data.length === 0) {
+                    html = '<tr><td colspan="3" class="no-data">Sem dados</td></tr>';
+                } else {
+                    data.forEach(row => {
+                        html += `
+                            <tr>
+                                <td><span class="status-badge running">${row.USER}</span></td>
+                                <td><strong>${row.qtd_queries}</strong></td>
+                                <td>${row.databases_count || '--'}</td>
+                            </tr>
+                        `;
+                    });
+                }
+                document.getElementById('top-users-table').innerHTML = html;
+            } catch (error) {
+                console.error('Erro ao carregar top users:', error);
+            }
+        }
+
+        async function loadRecommendations() {
+            try {
+                const response = await fetch('/api/recommendations');
+                const recommendations = await response.json();
+                
+                if (!recommendations || recommendations.length === 0) {
+                    document.getElementById('recommendations-container').innerHTML = 
+                        '<div style="padding: 30px; text-align: center; color: #27ae60;"><strong>Nenhuma recomendação crítica.</strong><p style="color:#9da7b3;">Seu banco está funcionando bem.</p></div>';
+                    return;
+                }
+                
+                // Ordenar por prioridade
+                const priorityOrder = { 'CRÍTICO': 0, 'ALTO': 1, 'MÉDIO': 2 };
+                recommendations.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+                
+                let html = '';
+                recommendations.forEach(rec => {
+                    const priorityLower = rec.priority.toLowerCase();
+                    const cleanTitle = stripIcons(rec.title);
+                    const cleanDescription = stripIcons(rec.description);
+                    const cleanImpact = stripIcons(rec.impact);
+                    html += `
+                        <div class="recommendation-item ${priorityLower}">
+                            <span class="recommendation-badge ${priorityLower}">${rec.priority}</span>
+                            <div class="recommendation-content">
+                                <div class="recommendation-title">${cleanTitle}</div>
+                                <div class="recommendation-description">${cleanDescription}</div>
+                                <div class="recommendation-impact">${cleanImpact}</div>
+                                <div class="recommendation-actions">
+                                    <strong>Ações Recomendadas:</strong>
+                                    <ul style="margin: 8px 0 0 0;">
+                                        ${rec.actions.map(action => `<li>${stripIcons(action)}</li>`).join('')}
+                                    </ul>
+                                </div>
+                                ${rec.command ? `
+                                <div class="recommendation-command" style="margin-top: 15px; padding: 12px; background-color: #0f1724; border-radius: 6px; border-left: 3px solid #667eea; border: 1px solid #2b3340;">
+                                    <div style="font-size: 0.85em; color: #9da7b3; margin-bottom: 5px;"><strong>Comando de Ação:</strong></div>
+                                    <div class="command-box" style="background-color: #1e2a3a; color: #6ee7b7; padding: 10px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.9em; word-break: break-all; display: flex; justify-content: space-between; align-items: center; border: 1px solid #334155;">
+                                        <code>${rec.command}</code>
+                                        <button class="copy-btn" onclick="copyToClipboard('${rec.command.replace(/'/g, "\\'")}', this)" style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8em; margin-left: 10px; min-width: 72px;">Copiar</button>
+                                    </div>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('recommendations-container').innerHTML = html;
+            } catch (error) {
+                console.error('Erro ao carregar recomendações:', error);
+                document.getElementById('recommendations-container').innerHTML = 
+                    '<div style="color: #e74c3c; padding: 20px;">Erro ao carregar recomendações</div>';
+            }
+        }
+
+        async function loadHealthCheckDetailed() {
+            try {
+                const response = await fetch('/api/health-check-detailed');
+                const data = await response.json();
+                
+                if (!data.checks || data.checks.length === 0) {
+                    return;
+                }
+                
+                let html = '';
+                data.checks.forEach(check => {
+                    const statusLower = check.status.toLowerCase();
+                    html += `
+                        <div class="health-check-item">
+                            <div class="health-check-name">${check.name}</div>
+                            <div class="health-check-value">${check.value}</div>
+                            <span class="health-check-status ${statusLower}">${check.status}</span>
+                            <div class="health-score-bar">
+                                <div class="health-score-bar-fill" style="width: ${check.score}%;"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('health-check-grid').innerHTML = html;
+            } catch (error) {
+                console.error('Erro ao carregar health check:', error);
+            }
+        }
+
+        async function loadReplicationStatus() {
+            try {
+                const response = await fetch('/api/replication-status');
+                const data = await response.json();
+                const container = document.getElementById('replication-status-container');
+
+                if (!response.ok || data.error) {
+                    container.innerHTML = `
+                        <div style="padding: 20px; border-left: 5px solid #dc3545;">
+                            <div style="font-size: 1.4em; font-weight: bold; color: #dc3545; margin-bottom: 8px;">BANCO INATIVO</div>
+                            <div style="color: #9da7b3;">${data.message || 'Sem resposta do banco de dados'}</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const uptimeSeconds = Number(data.uptime_seconds || 0);
+                const days = Math.floor(uptimeSeconds / 86400);
+                const hours = Math.floor((uptimeSeconds % 86400) / 3600);
+                const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+                const uptimeLabel = `${days}d ${hours}h ${minutes}m`;
+
+                const roleLabel = data.replication_role === 'replica'
+                    ? 'RÉPLICA'
+                    : data.replication_role === 'master'
+                        ? 'MASTER'
+                        : 'SEM REPLICAÇÃO';
+
+                const replicationText = data.replication_role === 'replica'
+                    ? (data.replication_active ? 'ATIVA' : data.replication_status_detail || 'PARADA')
+                    : (
+                        data.replication_role === 'master'
+                            ? (data.replication_active ? 'ATIVA' : 'SEM RÉPLICA CONECTADA')
+                            : 'NÃO CONFIGURADA'
+                    );
+
+                const replicationColor = data.replication_role === 'replica'
+                    ? (data.replication_active ? '#27ae60' : '#e74c3c')
+                    : (
+                        data.replication_role === 'master'
+                            ? (data.replication_active ? '#27ae60' : '#e74c3c')
+                            : '#9da7b3'
+                    );
+
+                const dbStatusText = data.is_active ? 'ATIVO' : 'INATIVO';
+                const dbStatusColor = data.is_active ? '#27ae60' : '#e74c3c';
+                const dbStatusBg = data.is_active ? '#0f2d1d' : '#2d1111';
+
+                container.innerHTML = `
+                    <div style="padding: 20px; border-left: 5px solid ${dbStatusColor};">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
+                            <div style="background-color: ${dbStatusBg}; padding: 15px; border-radius: 8px; border-left: 4px solid ${dbStatusColor};">
+                                <div style="font-size: 0.85em; color: #9da7b3; margin-bottom: 8px; font-weight: 600;">STATUS DO BANCO</div>
+                                <div style="font-size: 1.8em; font-weight: bold; color: ${dbStatusColor};">${dbStatusText}</div>
+                            </div>
+
+                            <div style="background-color: #111827; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
+                                <div style="font-size: 0.85em; color: #9da7b3; margin-bottom: 8px; font-weight: 600;">HOST</div>
+                                <div style="font-size: 1.1em; font-weight: bold; color: #e6edf3;">${data.db_hostname || 'N/A'}:${data.db_port || ''}</div>
+                            </div>
+
+                            <div style="background-color: #111827; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
+                                <div style="font-size: 0.85em; color: #9da7b3; margin-bottom: 8px; font-weight: 600;">UPTIME</div>
+                                <div style="font-size: 1.1em; font-weight: bold; color: #e6edf3;">${uptimeLabel}</div>
+                            </div>
+
+                            <div style="background-color: #111827; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
+                                <div style="font-size: 0.85em; color: #9da7b3; margin-bottom: 8px; font-weight: 600;">CONEXÕES</div>
+                                <div style="font-size: 1.1em; font-weight: bold; color: #e6edf3;">${data.threads_connected ?? 'N/A'}</div>
+                            </div>
+
+                            <div style="background-color: #111827; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
+                                <div style="font-size: 0.85em; color: #9da7b3; margin-bottom: 8px; font-weight: 600;">TIPO</div>
+                                <div style="font-size: 1.1em; font-weight: bold; color: #e6edf3;">${roleLabel}</div>
+                            </div>
+
+                            <div style="background-color: #111827; padding: 15px; border-radius: 8px; border-left: 4px solid ${replicationColor};">
+                                <div style="font-size: 0.85em; color: #9da7b3; margin-bottom: 8px; font-weight: 600;">REPLICAÇÃO</div>
+                                <div style="font-size: 1.1em; font-weight: bold; color: ${replicationColor};">${replicationText}</div>
+                                ${data.replication_role === 'replica' ? `<div style="font-size: 0.8em; color: #9da7b3; margin-top: 4px;">Lag: ${data.lag || 0}s</div>` : ''}
+                                ${data.replication_role === 'replica' ? `<div style="font-size: 0.8em; color: ${data.no_receive_seconds < data.flow_timeout_seconds ? '#9da7b3' : '#fca5a5'}; margin-top: 4px; font-weight: ${data.no_receive_seconds >= data.flow_timeout_seconds ? 'bold' : 'normal'};">Sem receber eventos há: ${data.no_receive_seconds ?? 0}s / ${data.flow_timeout_seconds ?? 0}s</div>` : ''}
+                                ${data.replication_role === 'replica' ? `<div style="font-size: 0.8em; color: ${data.no_apply_seconds < data.flow_timeout_seconds ? '#9da7b3' : '#fca5a5'}; margin-top: 4px; font-weight: ${data.no_apply_seconds >= data.flow_timeout_seconds ? 'bold' : 'normal'};">Sem aplicar eventos há: ${data.no_apply_seconds ?? 0}s / ${data.flow_timeout_seconds ?? 0}s</div>` : ''}
+                                ${data.replication_role === 'replica' && data.no_receive_seconds >= (data.flow_timeout_seconds ?? 90) ? `<div style="font-size: 0.9em; color: #fca5a5; margin-top: 8px; font-weight: bold; padding: 8px; background-color: #2d1111; border-radius: 4px;">⚠️ CRÍTICO: Réplica não recebe do master há ${data.no_receive_seconds}s!</div>` : ''}
+                                ${data.replication_role === 'replica' && data.last_error ? `<div style="font-size: 0.8em; color: #fca5a5; margin-top: 6px;">Erro: ${data.last_error}</div>` : ''}
+                                ${data.replication_role === 'master' ? `<div style="font-size: 0.8em; color: #9da7b3; margin-top: 4px;">Réplicas conectadas: ${data.connected_replicas || 0}</div>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Erro ao carregar status do banco:', error);
+                document.getElementById('replication-status-container').innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: #e74c3c;">
+                        Erro ao conectar ao banco de dados
+                    </div>
+                `;
+            }
+        }
+
+        async function loadDBASummary() {
+            try {
+                const response = await fetch('/api/dba-summary');
+                const data = await response.json();
+                const container = document.getElementById('dba-summary-container');
+
+                if (!response.ok || !data.ok) {
+                    container.innerHTML = '<div style="color:#e74c3c; padding: 14px;">Resumo indisponível no momento</div>';
+                    return;
+                }
+
+                const levelColor = data.level === 'CRÍTICO' ? '#e74c3c' : data.level === 'ATENÇÃO' ? '#f39c12' : '#27ae60';
+                const metrics = data.metrics || {};
+
+                container.innerHTML = `
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 10px;">
+                        <div style="background:#111827; border:1px solid #2b3340; border-radius:8px; padding:10px;"><div style="color:#9da7b3; font-size:.85em;">Score</div><div style="font-size:1.4em; font-weight:700; color:${levelColor};">${data.score}%</div></div>
+                        <div style="background:#111827; border:1px solid #2b3340; border-radius:8px; padding:10px;"><div style="color:#9da7b3; font-size:.85em;">Nível</div><div style="font-size:1.1em; font-weight:700; color:${levelColor};">${data.level}</div></div>
+                        <div style="background:#111827; border:1px solid #2b3340; border-radius:8px; padding:10px;"><div style="color:#9da7b3; font-size:.85em;">Queries lentas</div><div style="font-size:1.2em; font-weight:700; color:#e6edf3;">${metrics.slow_queries ?? 0}</div></div>
+                        <div style="background:#111827; border:1px solid #2b3340; border-radius:8px; padding:10px;"><div style="color:#9da7b3; font-size:.85em;">Locks abertos</div><div style="font-size:1.2em; font-weight:700; color:#e6edf3;">${metrics.open_locks ?? 0}</div></div>
+                        <div style="background:#111827; border:1px solid #2b3340; border-radius:8px; padding:10px;"><div style="color:#9da7b3; font-size:.85em;">Conexões</div><div style="font-size:1.2em; font-weight:700; color:#e6edf3;">${metrics.connection_ratio_pct ?? 0}%</div></div>
+                    </div>
+                    <div style="padding:12px; background:#101722; border:1px solid #2b3340; border-left:4px solid ${levelColor}; border-radius:8px; color:#e6edf3;">
+                        <strong>Próxima ação prioritária:</strong> ${data.primary_action}
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('dba-summary-container').innerHTML = '<div style="color:#e74c3c; padding: 14px;">Erro ao carregar resumo executivo</div>';
+            }
+        }
+
+        async function loadAllData() {
+            updateLastUpdateTime();
+            try {
+                const now = Date.now();
+
+                if ((now - lastCollectorTriggerAt) >= collectorTriggerInterval) {
+                    await fetch('/api/performance-collect', { method: 'POST' });
+                    lastCollectorTriggerAt = now;
+                }
+
+                const tasks = [
+                    loadDbaAlerts(),
+                    loadDBASummary(),
+                    loadRecommendations(),
+                    loadHealthCheckDetailed(),
+                    loadReplicationStatus(),
+                    loadRunningQueries(),
+                    loadConnections(),
+                    loadLocks(),
+                    loadSlowQueriesDetail(),
+                    loadCacheInfo(),
+                    loadUptimeInfo(),
+                    loadTopUsers()
+                ];
+
+                if ((now - lastExpensiveRefreshAt) >= expensiveRefreshInterval) {
+                    tasks.push(loadHeavyQueries());
+                    tasks.push(loadDatabaseSize());
+                    lastExpensiveRefreshAt = now;
+                }
+
+                await Promise.all(tasks);
+
+                if ((now - lastManagementDispatchAt) >= managementDispatchInterval) {
+                    await dispatchManagementEmail(false);
+                    lastManagementDispatchAt = now;
+                }
+
+                if (currentTab === 'performance') {
+                    await loadPerformance24h();
+                } else if (currentTab === 'management') {
+                    await loadManagementData(false);
+                }
+            } catch (err) {
+                console.error('Erro ao carregar dados:', err);
+            }
+        }
+
+        async function loadDbaAlerts() {
+            try {
+                const response = await fetch('/api/dba-alerts');
+                const alerts = await response.json();
+                const container = document.getElementById('dba-alerts-container');
+
+                if (!alerts || alerts.length === 0) {
+                    container.innerHTML = '<div style="padding: 12px; color: #27ae60; font-weight: 700;">Nenhum alerta relevante no momento</div>';
+                    return;
+                }
+
+                const severityColor = {
+                    critico: '#e74c3c',
+                    alto: '#e67e22',
+                    medio: '#f1c40f',
+                    info: '#3498db'
+                };
+
+                let html = '';
+                alerts.forEach(item => {
+                    const color = severityColor[item.severity] || '#3498db';
+                    html += `
+                        <div style="border-left: 5px solid ${color}; background: #101722; border-radius: 8px; padding: 14px; margin-bottom: 10px; border: 1px solid #2b3340;">
+                            <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:6px;">
+                                <strong style="color:${color}; text-transform: uppercase;">${item.severity}</strong>
+                                <span style="font-weight:700; color:#e6edf3;">${item.title}</span>
+                            </div>
+                            <div style="color:#c9d1d9; margin-bottom:6px;">${item.detail}</div>
+                            <div style="color:#e6edf3;"><strong>Ação:</strong> ${item.action}</div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('Erro ao carregar alertas DBA:', error);
+                document.getElementById('dba-alerts-container').innerHTML = '<div class="no-data">Erro ao carregar alertas</div>';
+            }
+        }
+
+        function destroyPerformanceCharts() {
+            Object.keys(performanceCharts).forEach((chartKey) => {
+                if (performanceCharts[chartKey]) {
+                    performanceCharts[chartKey].destroy();
+                    performanceCharts[chartKey] = null;
+                }
+            });
+        }
+
+        function toNumber(value) {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : 0;
+        }
+
+        function stripIcons(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
+                .replace(/\s{2,}/g, ' ')
+                .trim();
+        }
+
+        async function loadPerformance24h() {
+            try {
+                const response = await fetch('/api/performance-24h');
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Falha ao carregar dados de performance');
+                }
+
+                destroyPerformanceCharts();
+
+                const slowLabels = (data.slow_queries_trend || []).map(item => item.label);
+                const slowValues = (data.slow_queries_trend || []).map(item => toNumber(item.value));
+
+                performanceCharts.slowQueries = new Chart(document.getElementById('chart-slow-queries'), {
+                    type: 'line',
+                    data: {
+                        labels: slowLabels,
+                        datasets: [{
+                            label: 'Queries Lentas',
+                            data: slowValues,
+                            borderColor: '#e74c3c',
+                            backgroundColor: 'rgba(231, 76, 60, 0.15)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+
+                const connLabels = (data.active_connections_trend || []).map(item => item.label);
+                const connTotal = (data.active_connections_trend || []).map(item => toNumber(item.total_connections));
+                const connActive = (data.active_connections_trend || []).map(item => toNumber(item.active_queries));
+                const connIdle = (data.active_connections_trend || []).map(item => toNumber(item.idle_connections));
+
+                performanceCharts.connections = new Chart(document.getElementById('chart-connections'), {
+                    type: 'line',
+                    data: {
+                        labels: connLabels,
+                        datasets: [
+                            { label: 'Total', data: connTotal, borderColor: '#667eea', backgroundColor: 'rgba(102, 126, 234, 0.1)', borderWidth: 2, tension: 0.25 },
+                            { label: 'Ativas', data: connActive, borderColor: '#27ae60', backgroundColor: 'rgba(39, 174, 96, 0.1)', borderWidth: 2, tension: 0.25 },
+                            { label: 'Idle', data: connIdle, borderColor: '#f39c12', backgroundColor: 'rgba(243, 156, 18, 0.1)', borderWidth: 2, tension: 0.25 }
+                        ]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+
+                const qpsLabels = (data.qps_trend || []).map(item => item.label);
+                const qpsValues = (data.qps_trend || []).map(item => toNumber(item.value));
+
+                performanceCharts.qps = new Chart(document.getElementById('chart-qps'), {
+                    type: 'bar',
+                    data: {
+                        labels: qpsLabels,
+                        datasets: [{
+                            label: 'QPS',
+                            data: qpsValues,
+                            backgroundColor: 'rgba(52, 152, 219, 0.65)',
+                            borderColor: '#3498db',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+
+                const growthRows = data.db_growth || [];
+                const groupedByDb = {};
+                const growthLabels = [...new Set(growthRows.map(item => item.label))];
+
+                growthRows.forEach(item => {
+                    const db = item.table_schema || 'desconhecido';
+                    if (!groupedByDb[db]) {
+                        groupedByDb[db] = {};
+                    }
+                    groupedByDb[db][item.label] = toNumber(item.total_size_mb);
+                });
+
+                const dbDatasets = Object.keys(groupedByDb).slice(0, 6).map((db, index) => {
+                    const palette = ['#9b59b6', '#1abc9c', '#34495e', '#e67e22', '#2ecc71', '#e74c3c'];
+                    return {
+                        label: db,
+                        data: growthLabels.map(label => groupedByDb[db][label] || 0),
+                        borderColor: palette[index % palette.length],
+                        backgroundColor: `${palette[index % palette.length]}33`,
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.2
+                    };
+                });
+
+                performanceCharts.dbGrowth = new Chart(document.getElementById('chart-db-growth'), {
+                    type: 'line',
+                    data: {
+                        labels: growthLabels,
+                        datasets: dbDatasets
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+
+                const signalRows = data.dba_signals || [];
+                const signalLabels = signalRows.map(item => item.label);
+                const lagValues = signalRows.map(item => toNumber(item.replication_lag_seconds));
+                const hitValues = signalRows.map(item => toNumber(item.buffer_pool_hit_ratio));
+
+                performanceCharts.replicationLag = new Chart(document.getElementById('chart-replication-lag'), {
+                    type: 'line',
+                    data: {
+                        labels: signalLabels,
+                        datasets: [{
+                            label: 'Lag (segundos)',
+                            data: lagValues,
+                            borderColor: '#8e44ad',
+                            backgroundColor: 'rgba(142, 68, 173, 0.15)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.2
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+
+                performanceCharts.bufferHit = new Chart(document.getElementById('chart-buffer-hit'), {
+                    type: 'line',
+                    data: {
+                        labels: signalLabels,
+                        datasets: [{
+                            label: 'Hit Ratio (%)',
+                            data: hitValues,
+                            borderColor: '#16a085',
+                            backgroundColor: 'rgba(22, 160, 133, 0.12)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { suggestedMin: 90, suggestedMax: 100 } }
+                    }
+                });
+
+                const deadRows = data.deadlocks_hourly || [];
+                const tmpRows = data.tmp_disk_tables_hourly || [];
+                const deadLabels = deadRows.map(item => item.label);
+                const deadValues = deadRows.map(item => toNumber(item.deadlocks_delta));
+                const tmpMap = {};
+                tmpRows.forEach(item => { tmpMap[item.label] = toNumber(item.tmp_disk_delta); });
+                const tmpValues = deadLabels.map(label => tmpMap[label] || 0);
+
+                performanceCharts.deadlocks = new Chart(document.getElementById('chart-deadlocks'), {
+                    type: 'bar',
+                    data: {
+                        labels: deadLabels,
+                        datasets: [
+                            {
+                                label: 'Deadlocks/h',
+                                data: deadValues,
+                                backgroundColor: 'rgba(192, 57, 43, 0.7)',
+                                borderColor: '#c0392b',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Tmp Disk Tables/h',
+                                data: tmpValues,
+                                backgroundColor: 'rgba(241, 196, 15, 0.7)',
+                                borderColor: '#f39c12',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            } catch (error) {
+                console.error('Erro ao carregar gráficos 24h:', error);
+            }
+        }
+
+        function copyToClipboard(text, buttonElement = null) {
+            // Decodificar para remover escapes
+            const decodedText = text.replace(/\\'/g, "'");
+            navigator.clipboard.writeText(decodedText).then(() => {
+                if (buttonElement) {
+                    const originalText = buttonElement.textContent;
+                    buttonElement.textContent = 'Copiado!';
+                    buttonElement.style.background = '#27ae60';
+                    buttonElement.disabled = true;
+
+                    setTimeout(() => {
+                        buttonElement.textContent = originalText;
+                        buttonElement.style.background = '#667eea';
+                        buttonElement.disabled = false;
+                    }, 1500);
+                }
+            }).catch(err => {
+                console.error('Erro ao copiar:', err);
+                if (buttonElement) {
+                    const originalText = buttonElement.textContent;
+                    buttonElement.textContent = 'Erro';
+                    buttonElement.style.background = '#e74c3c';
+                    setTimeout(() => {
+                        buttonElement.textContent = originalText;
+                        buttonElement.style.background = '#667eea';
+                    }, 1500);
+                }
+            });
+        }
+
+        // Carregar dados inicialmente e configurar auto-refresh
+        loadAllData();
+        refreshTimer = setInterval(loadAllData, refreshInterval);
+    </script>
+</body>
+</html>
